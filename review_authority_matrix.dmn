@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="Definitions_ReviewAuthority"
+             name="Cville Dev Code - Review Authority Matrix (5.1.1)"
+             namespace="https://lexipedia.xyz/cville/dev-code">
+  <inputData id="Input_ProcessRef" name="Approval Process (Sec.)"><variable id="Var_ProcessRef" name="processRef" typeRef="string" /></inputData>
+  <decision id="Decision_ReviewAuthority" name="Review Authority and Hearing Requirements">
+    <question>For a given approval process, which body recommends, decides, and hears appeals; is a public hearing or meeting required?</question>
+    <informationRequirement id="IR_PR"><requiredInput href="#Input_ProcessRef" /></informationRequirement>
+    <decisionTable id="Table_ReviewAuthority" hitPolicy="UNIQUE">
+      <input id="In_PR" label="Approval Process (Sec.)"><inputExpression id="InExpr_PR" typeRef="string"><text>processRef</text></inputExpression></input>
+      <output id="Out_Recommend" label="Review / Recommend (R)" name="recommend" typeRef="string" />
+      <output id="Out_Decide" label="Final Decision (D)" name="decide" typeRef="string" />
+      <output id="Out_Appeal" label="Appeal (A)" name="appeal" typeRef="string" />
+      <output id="Out_Hearing" label="Hearing Requirement" name="hearing" typeRef="string" />
+      <rule id="a2"><inputEntry id="a2_i"><text>"5.2.2"</text></inputEntry><outputEntry id="a2_r"><text>"Administrator; Planning Commission"</text></outputEntry><outputEntry id="a2_d"><text>"City Council"</text></outputEntry><outputEntry id="a2_a"><text>"-"</text></outputEntry><outputEntry id="a2_h"><text>"Public Hearing"</text></outputEntry></rule>
+      <rule id="a3"><inputEntry id="a3_i"><text>"5.2.3"</text></inputEntry><outputEntry id="a3_r"><text>"Administrator; Planning Commission"</text></outputEntry><outputEntry id="a3_d"><text>"City Council"</text></outputEntry><outputEntry id="a3_a"><text>"-"</text></outputEntry><outputEntry id="a3_h"><text>"Public Hearing"</text></outputEntry></rule>
+      <rule id="a4"><inputEntry id="a4_i"><text>"5.2.4"</text></inputEntry><outputEntry id="a4_r"><text>"Administrator"</text></outputEntry><outputEntry id="a4_d"><text>"Planning Commission"</text></outputEntry><outputEntry id="a4_a"><text>"City Council"</text></outputEntry><outputEntry id="a4_h"><text>"None"</text></outputEntry></rule>
+      <rule id="a5"><inputEntry id="a5_i"><text>"5.2.5"</text></inputEntry><outputEntry id="a5_r"><text>"Administrator; Planning Commission"</text></outputEntry><outputEntry id="a5_d"><text>"City Council"</text></outputEntry><outputEntry id="a5_a"><text>"-"</text></outputEntry><outputEntry id="a5_h"><text>"Public Hearing"</text></outputEntry></rule>
+      <rule id="a6"><inputEntry id="a6_i"><text>"5.2.6"</text></inputEntry><outputEntry id="a6_r"><text>"-"</text></outputEntry><outputEntry id="a6_d"><text>"Administrator"</text></outputEntry><outputEntry id="a6_a"><text>"Board of Architectural Review"</text></outputEntry><outputEntry id="a6_h"><text>"None"</text></outputEntry></rule>
+      <rule id="a7"><inputEntry id="a7_i"><text>"5.2.7"</text></inputEntry><outputEntry id="a7_r"><text>"Administrator"</text></outputEntry><outputEntry id="a7_d"><text>"Board of Architectural Review"</text></outputEntry><outputEntry id="a7_a"><text>"City Council"</text></outputEntry><outputEntry id="a7_h"><text>"None"</text></outputEntry></rule>
+      <rule id="a8"><inputEntry id="a8_i"><text>"5.2.8"</text></inputEntry><outputEntry id="a8_r"><text>"-"</text></outputEntry><outputEntry id="a8_d"><text>"Administrator"</text></outputEntry><outputEntry id="a8_a"><text>"Planning Commission; City Council (VERIFY vs PDF matrix)"</text></outputEntry><outputEntry id="a8_h"><text>"None"</text></outputEntry></rule>
+      <rule id="a9"><inputEntry id="a9_i"><text>"5.2.9"</text></inputEntry><outputEntry id="a9_r"><text>"-"</text></outputEntry><outputEntry id="a9_d"><text>"Administrator"</text></outputEntry><outputEntry id="a9_a"><text>"Circuit Court (Code of Virginia 15.2-2259)"</text></outputEntry><outputEntry id="a9_h"><text>"None"</text></outputEntry></rule>
+      <rule id="a10"><inputEntry id="a10_i"><text>"5.2.10"</text></inputEntry><outputEntry id="a10_r"><text>"-"</text></outputEntry><outputEntry id="a10_d"><text>"Administrator"</text></outputEntry><outputEntry id="a10_a"><text>"Board of Zoning Appeals"</text></outputEntry><outputEntry id="a10_h"><text>"Public Hearing (on appeal)"</text></outputEntry></rule>
+      <rule id="a11"><inputEntry id="a11_i"><text>"5.2.11"</text></inputEntry><outputEntry id="a11_r"><text>"-"</text></outputEntry><outputEntry id="a11_d"><text>"Administrator"</text></outputEntry><outputEntry id="a11_a"><text>"Board of Zoning Appeals"</text></outputEntry><outputEntry id="a11_h"><text>"Public Hearing (on appeal)"</text></outputEntry></rule>
+      <rule id="a12"><inputEntry id="a12_i"><text>"5.2.12"</text></inputEntry><outputEntry id="a12_r"><text>"Administrator"</text></outputEntry><outputEntry id="a12_d"><text>"Board of Zoning Appeals"</text></outputEntry><outputEntry id="a12_a"><text>"-"</text></outputEntry><outputEntry id="a12_h"><text>"Public Hearing"</text></outputEntry></rule>
+      <rule id="a13"><inputEntry id="a13_i"><text>"5.2.13"</text></inputEntry><outputEntry id="a13_r"><text>"Administrator"</text></outputEntry><outputEntry id="a13_d"><text>"Board of Zoning Appeals"</text></outputEntry><outputEntry id="a13_a"><text>"-"</text></outputEntry><outputEntry id="a13_h"><text>"Public Hearing"</text></outputEntry></rule>
+      <rule id="a14"><inputEntry id="a14_i"><text>"5.2.14"</text></inputEntry><outputEntry id="a14_r"><text>"Administrator; Planning Commission"</text></outputEntry><outputEntry id="a14_d"><text>"City Council"</text></outputEntry><outputEntry id="a14_a"><text>"-"</text></outputEntry><outputEntry id="a14_h"><text>"Public Hearing"</text></outputEntry></rule>
+      <rule id="a15"><inputEntry id="a15_i"><text>"5.2.15"</text></inputEntry><outputEntry id="a15_r"><text>"Administrator; Planning Commission"</text></outputEntry><outputEntry id="a15_d"><text>"City Council"</text></outputEntry><outputEntry id="a15_a"><text>"-"</text></outputEntry><outputEntry id="a15_h"><text>"Public Meeting"</text></outputEntry></rule>
+      <rule id="a16"><inputEntry id="a16_i"><text>"5.2.16"</text></inputEntry><outputEntry id="a16_r"><text>"Administrator; Planning Commission"</text></outputEntry><outputEntry id="a16_d"><text>"City Council"</text></outputEntry><outputEntry id="a16_a"><text>"-"</text></outputEntry><outputEntry id="a16_h"><text>"Public Meeting"</text></outputEntry></rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI><dmndi:DMNDiagram id="DMNDiagram_Authority">
+    <dmndi:DMNShape id="S_DecA" dmnElementRef="Decision_ReviewAuthority"><dc:Bounds x="260" y="80" width="260" height="80" /></dmndi:DMNShape>
+    <dmndi:DMNShape id="S_PR" dmnElementRef="Input_ProcessRef"><dc:Bounds x="315" y="280" width="150" height="60" /></dmndi:DMNShape>
+    <dmndi:DMNEdge id="E_PR" dmnElementRef="IR_PR"><di:waypoint x="390" y="280" /><di:waypoint x="390" y="160" /></dmndi:DMNEdge>
+  </dmndi:DMNDiagram></dmndi:DMNDI>
+</definitions>

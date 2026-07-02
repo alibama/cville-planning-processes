@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Rezoning" targetNamespace="https://lexipedia.xyz/cville/dev-code">
+  <bpmn:process id="Process_ZoningMapAmendment" name="Zoning Map Amendment / Rezoning (Cville Dev Code 5.2.5)" isExecutable="true">
+    <bpmn:documentation>Zoning Map Amendment (Rezoning) per Chapter 34 Div. 5.2.5. Invokes Common Review Procedures (5.2.1) as a Call Activity. Statutory anchors: Code of Virginia 15.2-2204 (notice), 15.2-2285/-2286 (amendments), 15.2-2296 et seq. (conditional zoning / proffers).</bpmn:documentation>
+    <bpmn:startEvent id="Start_Init" name="Application initiated">
+      <bpmn:documentation>5.2.5.B.1 a Zoning Map Amendment may be initiated by City Council, the Planning Commission, or an owner / owner's agent / contract purchaser with the owner's written consent.</bpmn:documentation>
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_PreApp" name="Pre-application conference waived?" default="f3">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_PreApp" name="Pre-application conference with Administrator">
+      <bpmn:documentation>5.2.5.B.2.a required before submitting a Zoning Map Amendment; may be waived at the Administrator's discretion.</bpmn:documentation>
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:callActivity id="Call_Spine" name="Common Review Procedures (5.2.1)" calledElement="Process_CommonReviewProcedures">
+      <bpmn:documentation>5.2.5.B.2.b application submittal: form, plans, and fees filed with the Administrator; general submittal requirements per 5.2.1. Invokes the shared intake spine.</bpmn:documentation>
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:userTask id="Task_StaffReport" name="Administrator: staff report &amp; recommendation to PC">
+      <bpmn:documentation>5.2.5.C.1.a the Administrator reviews and provides a staff report and recommendation to the Planning Commission in advance of the hearing; other City staff may contribute.</bpmn:documentation>
+      <bpmn:incoming>f5</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Overlay" name="Property in ADC / HC / Individually Protected?" default="f8">
+      <bpmn:incoming>f6</bpmn:incoming>
+      <bpmn:outgoing>f7</bpmn:outgoing>
+      <bpmn:outgoing>f8</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_BARReferral" name="Refer to BAR: adverse-impact review &amp; mitigating conditions">
+      <bpmn:documentation>5.2.5.C.1.b when the property is within an ADC District, HC District, or is an Individually Protected Property, the Administrator refers the application to the BAR; the BAR may submit a written report to PC and Council.</bpmn:documentation>
+      <bpmn:incoming>f7</bpmn:incoming>
+      <bpmn:outgoing>f9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Notice" name="Public notice of hearing (Code of Virginia 15.2-2204)">
+      <bpmn:documentation>5.2.5.C.2 notice of the public hearing given per Code of Virginia 15.2-2204.</bpmn:documentation>
+      <bpmn:incoming>f8</bpmn:incoming>
+      <bpmn:incoming>f9</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_PCHearing" name="Planning Commission public hearing (&gt;=1; may be joint)">
+      <bpmn:documentation>5.2.5.C.3.a the PC must advertise and hold at least one public hearing before recommending; may hold a joint hearing with Council.</bpmn:documentation>
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:incoming>f14</bpmn:incoming>
+      <bpmn:incoming>f25</bpmn:incoming>
+      <bpmn:outgoing>f11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_ProfferNew" name="Proffers new / substantially modified at hearing?" default="f13">
+      <bpmn:incoming>f11</bpmn:incoming>
+      <bpmn:outgoing>f12</bpmn:outgoing>
+      <bpmn:outgoing>f13</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_PCContinue" name="PC continues: Administrator review + public comment">
+      <bpmn:documentation>5.2.5.C.3.b.i where proffers are made for the first time or substantially modified at the hearing, the PC continues the application for Administrator review and public comment.</bpmn:documentation>
+      <bpmn:incoming>f12</bpmn:incoming>
+      <bpmn:outgoing>f14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_PCAction" name="Planning Commission final action / recommendation">
+      <bpmn:documentation>5.2.5.C.3 the Planning Commission makes its recommendation to City Council.</bpmn:documentation>
+      <bpmn:incoming>f13</bpmn:incoming>
+      <bpmn:outgoing>f15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_HasProffers" name="Proffered conditions included?" default="f17">
+      <bpmn:incoming>f15</bpmn:incoming>
+      <bpmn:outgoing>f16</bpmn:outgoing>
+      <bpmn:outgoing>f17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_FinalProffer" name="Applicant: compile final proffer statement (&lt;=7 days after PC)">
+      <bpmn:documentation>5.2.5.C.3.b.ii the applicant compiles all proffers as acted upon by the PC into a final written proffer statement, submitted to the Administrator within 7 days of the PC meeting.</bpmn:documentation>
+      <bpmn:incoming>f16</bpmn:incoming>
+      <bpmn:outgoing>f18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Transmit" name="Administrator: transmit final proffers to City Council">
+      <bpmn:documentation>5.2.5.C.3.b.ii the Administrator transmits the final proffer statement to Council with the application.</bpmn:documentation>
+      <bpmn:incoming>f18</bpmn:incoming>
+      <bpmn:outgoing>f19</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_CouncilHearing" name="City Council public hearing (&gt;=1; may be joint)">
+      <bpmn:documentation>5.2.5.C.4.a Council must advertise and hold at least one public hearing before enacting an amendment; may hold a joint hearing with the PC. No rezoning to a more intensive use than noticed without an additional advertised hearing.</bpmn:documentation>
+      <bpmn:incoming>f17</bpmn:incoming>
+      <bpmn:incoming>f19</bpmn:incoming>
+      <bpmn:outgoing>f20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Modif" name="Proffer modification proposed at Council?" default="f23">
+      <bpmn:incoming>f20</bpmn:incoming>
+      <bpmn:outgoing>f21</bpmn:outgoing>
+      <bpmn:outgoing>f22</bpmn:outgoing>
+      <bpmn:outgoing>f23</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AddlHearing" name="Additional public hearing (final proffers + modifications)">
+      <bpmn:documentation>5.2.5.C.4.b.ii Council may continue the application for an additional public hearing on the final proffer statement and proposed modifications, after advertisement and notice.</bpmn:documentation>
+      <bpmn:incoming>f21</bpmn:incoming>
+      <bpmn:outgoing>f24</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ReferPC" name="Refer modified application back to Planning Commission">
+      <bpmn:documentation>5.2.5.C.4.b.iii Council may refer the modified application to the PC for review and recommendation; re-referral is required if a modification deletes a substantive proffer provision reviewed by the PC.</bpmn:documentation>
+      <bpmn:incoming>f22</bpmn:incoming>
+      <bpmn:outgoing>f25</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_CouncilAction" name="Council action" default="f27">
+      <bpmn:incoming>f23</bpmn:incoming>
+      <bpmn:incoming>f24</bpmn:incoming>
+      <bpmn:outgoing>f26</bpmn:outgoing>
+      <bpmn:outgoing>f27</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Denied" name="Amendment denied">
+      <bpmn:incoming>f26</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_Conditional" name="Conditional zoning (proffers accepted)?" default="f29">
+      <bpmn:incoming>f27</bpmn:incoming>
+      <bpmn:outgoing>f28</bpmn:outgoing>
+      <bpmn:outgoing>f29</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Record" name="Administrator: note proffers on zoning map + update conditional zoning index">
+      <bpmn:documentation>5.2.5.E.2.a/c adopted proffered conditions become part of the zoning regulations, are noted on the zoning district map, and are indexed in the conditional zoning index.</bpmn:documentation>
+      <bpmn:incoming>f28</bpmn:incoming>
+      <bpmn:outgoing>f30</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Adopted" name="Amendment adopted">
+      <bpmn:documentation>5.2.5.C.4.a.iii Council will approve and adopt, amend and adopt, or deny the amendment.</bpmn:documentation>
+      <bpmn:incoming>f29</bpmn:incoming>
+      <bpmn:incoming>f30</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="Start_Init" targetRef="Gateway_PreApp" />
+    <bpmn:sequenceFlow id="f2" name="not waived" sourceRef="Gateway_PreApp" targetRef="Task_PreApp">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">preAppWaived == False</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f3" name="waived" sourceRef="Gateway_PreApp" targetRef="Call_Spine" />
+    <bpmn:sequenceFlow id="f4" sourceRef="Task_PreApp" targetRef="Call_Spine" />
+    <bpmn:sequenceFlow id="f5" sourceRef="Call_Spine" targetRef="Task_StaffReport" />
+    <bpmn:sequenceFlow id="f6" sourceRef="Task_StaffReport" targetRef="Gateway_Overlay" />
+    <bpmn:sequenceFlow id="f7" name="yes" sourceRef="Gateway_Overlay" targetRef="Task_BARReferral">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">inHistoricOverlay == True</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f8" name="no" sourceRef="Gateway_Overlay" targetRef="Task_Notice" />
+    <bpmn:sequenceFlow id="f9" sourceRef="Task_BARReferral" targetRef="Task_Notice" />
+    <bpmn:sequenceFlow id="f10" sourceRef="Task_Notice" targetRef="Task_PCHearing" />
+    <bpmn:sequenceFlow id="f11" sourceRef="Task_PCHearing" targetRef="Gateway_ProfferNew" />
+    <bpmn:sequenceFlow id="f12" name="yes" sourceRef="Gateway_ProfferNew" targetRef="Task_PCContinue">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">proffersChangedAtHearing == True</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f13" name="no" sourceRef="Gateway_ProfferNew" targetRef="Task_PCAction" />
+    <bpmn:sequenceFlow id="f14" name="re-hear" sourceRef="Task_PCContinue" targetRef="Task_PCHearing" />
+    <bpmn:sequenceFlow id="f15" sourceRef="Task_PCAction" targetRef="Gateway_HasProffers" />
+    <bpmn:sequenceFlow id="f16" name="yes" sourceRef="Gateway_HasProffers" targetRef="Task_FinalProffer">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">hasProffers == True</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f17" name="no" sourceRef="Gateway_HasProffers" targetRef="Task_CouncilHearing" />
+    <bpmn:sequenceFlow id="f18" sourceRef="Task_FinalProffer" targetRef="Task_Transmit" />
+    <bpmn:sequenceFlow id="f19" sourceRef="Task_Transmit" targetRef="Task_CouncilHearing" />
+    <bpmn:sequenceFlow id="f20" sourceRef="Task_CouncilHearing" targetRef="Gateway_Modif" />
+    <bpmn:sequenceFlow id="f21" name="continue" sourceRef="Gateway_Modif" targetRef="Task_AddlHearing">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">councilModOption == 'continue'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f22" name="refer to PC" sourceRef="Gateway_Modif" targetRef="Task_ReferPC">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">councilModOption == 'refer'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f23" name="decline / none" sourceRef="Gateway_Modif" targetRef="Gateway_CouncilAction" />
+    <bpmn:sequenceFlow id="f24" sourceRef="Task_AddlHearing" targetRef="Gateway_CouncilAction" />
+    <bpmn:sequenceFlow id="f25" name="re-refer" sourceRef="Task_ReferPC" targetRef="Task_PCHearing" />
+    <bpmn:sequenceFlow id="f26" name="deny" sourceRef="Gateway_CouncilAction" targetRef="End_Denied">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">councilDecision == 'deny'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f27" name="approve / amend &amp; adopt" sourceRef="Gateway_CouncilAction" targetRef="Gateway_Conditional" />
+    <bpmn:sequenceFlow id="f28" name="yes" sourceRef="Gateway_Conditional" targetRef="Task_Record">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">hasProffers == True</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f29" name="no" sourceRef="Gateway_Conditional" targetRef="End_Adopted" />
+    <bpmn:sequenceFlow id="f30" sourceRef="Task_Record" targetRef="End_Adopted" />
+    <bpmn:textAnnotation id="Ann_21day"><bpmn:text>21-day rule: preliminary proffers may be submitted with the application, or modified no fewer than 21 days before the PC hearing (5.2.5.B.3).</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="assoc_Ann_21day" sourceRef="Ann_21day" targetRef="Task_PCHearing" />
+    <bpmn:textAnnotation id="Ann_1yr"><bpmn:text>1-year bar: once advertised, Council cannot consider a substantially similar application for one year from the date the Administrator accepted it (5.2.5.E.1).</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="assoc_Ann_1yr" sourceRef="Ann_1yr" targetRef="End_Adopted" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Rezoning">
+    <bpmndi:BPMNPlane id="Plane_Rezoning" bpmnElement="Process_ZoningMapAmendment">
+      <bpmndi:BPMNShape id="di_Start_Init" bpmnElement="Start_Init">
+        <dc:Bounds x="42" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_PreApp" bpmnElement="Gateway_PreApp" isMarkerVisible="true">
+        <dc:Bounds x="245" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_PreApp" bpmnElement="Task_PreApp">
+        <dc:Bounds x="405" y="170" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Call_Spine" bpmnElement="Call_Spine">
+        <dc:Bounds x="610" y="315" width="160" height="90" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_StaffReport" bpmnElement="Task_StaffReport">
+        <dc:Bounds x="825" y="320" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_Overlay" bpmnElement="Gateway_Overlay" isMarkerVisible="true">
+        <dc:Bounds x="1085" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_BARReferral" bpmnElement="Task_BARReferral">
+        <dc:Bounds x="1245" y="170" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_Notice" bpmnElement="Task_Notice">
+        <dc:Bounds x="1455" y="320" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_PCHearing" bpmnElement="Task_PCHearing">
+        <dc:Bounds x="1665" y="320" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_ProfferNew" bpmnElement="Gateway_ProfferNew" isMarkerVisible="true">
+        <dc:Bounds x="1925" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_PCContinue" bpmnElement="Task_PCContinue">
+        <dc:Bounds x="2085" y="470" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_PCAction" bpmnElement="Task_PCAction">
+        <dc:Bounds x="2085" y="320" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_HasProffers" bpmnElement="Gateway_HasProffers" isMarkerVisible="true">
+        <dc:Bounds x="2345" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_FinalProffer" bpmnElement="Task_FinalProffer">
+        <dc:Bounds x="2505" y="170" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_Transmit" bpmnElement="Task_Transmit">
+        <dc:Bounds x="2715" y="170" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_CouncilHearing" bpmnElement="Task_CouncilHearing">
+        <dc:Bounds x="2925" y="320" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_Modif" bpmnElement="Gateway_Modif" isMarkerVisible="true">
+        <dc:Bounds x="3185" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_AddlHearing" bpmnElement="Task_AddlHearing">
+        <dc:Bounds x="3345" y="470" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_ReferPC" bpmnElement="Task_ReferPC">
+        <dc:Bounds x="3345" y="620" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_CouncilAction" bpmnElement="Gateway_CouncilAction" isMarkerVisible="true">
+        <dc:Bounds x="3605" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_End_Denied" bpmnElement="End_Denied">
+        <dc:Bounds x="3822" y="492" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Gateway_Conditional" bpmnElement="Gateway_Conditional" isMarkerVisible="true">
+        <dc:Bounds x="3815" y="335" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Task_Record" bpmnElement="Task_Record">
+        <dc:Bounds x="3975" y="170" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_End_Adopted" bpmnElement="End_Adopted">
+        <dc:Bounds x="4242" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Ann_21day" bpmnElement="Ann_21day">
+        <dc:Bounds x="1725" y="200" width="200" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_Ann_1yr" bpmnElement="Ann_1yr">
+        <dc:Bounds x="4302" y="222" width="200" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="di_f1" bpmnElement="f1">
+        <di:waypoint x="78" y="360" />
+        <di:waypoint x="245" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f2" bpmnElement="f2">
+        <di:waypoint x="295" y="360" />
+        <di:waypoint x="405" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f3" bpmnElement="f3">
+        <di:waypoint x="295" y="360" />
+        <di:waypoint x="610" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f4" bpmnElement="f4">
+        <di:waypoint x="555" y="210" />
+        <di:waypoint x="610" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f5" bpmnElement="f5">
+        <di:waypoint x="770" y="360" />
+        <di:waypoint x="825" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f6" bpmnElement="f6">
+        <di:waypoint x="975" y="360" />
+        <di:waypoint x="1085" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f7" bpmnElement="f7">
+        <di:waypoint x="1135" y="360" />
+        <di:waypoint x="1245" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f8" bpmnElement="f8">
+        <di:waypoint x="1135" y="360" />
+        <di:waypoint x="1455" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f9" bpmnElement="f9">
+        <di:waypoint x="1395" y="210" />
+        <di:waypoint x="1455" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f10" bpmnElement="f10">
+        <di:waypoint x="1605" y="360" />
+        <di:waypoint x="1665" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f11" bpmnElement="f11">
+        <di:waypoint x="1815" y="360" />
+        <di:waypoint x="1925" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f12" bpmnElement="f12">
+        <di:waypoint x="1975" y="360" />
+        <di:waypoint x="2085" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f13" bpmnElement="f13">
+        <di:waypoint x="1975" y="360" />
+        <di:waypoint x="2085" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f14" bpmnElement="f14">
+        <di:waypoint x="2160" y="550" />
+        <di:waypoint x="2160" y="620" />
+        <di:waypoint x="1740" y="620" />
+        <di:waypoint x="1740" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f15" bpmnElement="f15">
+        <di:waypoint x="2235" y="360" />
+        <di:waypoint x="2345" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f16" bpmnElement="f16">
+        <di:waypoint x="2395" y="360" />
+        <di:waypoint x="2505" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f17" bpmnElement="f17">
+        <di:waypoint x="2395" y="360" />
+        <di:waypoint x="2925" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f18" bpmnElement="f18">
+        <di:waypoint x="2655" y="210" />
+        <di:waypoint x="2715" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f19" bpmnElement="f19">
+        <di:waypoint x="2865" y="210" />
+        <di:waypoint x="2925" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f20" bpmnElement="f20">
+        <di:waypoint x="3075" y="360" />
+        <di:waypoint x="3185" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f21" bpmnElement="f21">
+        <di:waypoint x="3235" y="360" />
+        <di:waypoint x="3345" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f22" bpmnElement="f22">
+        <di:waypoint x="3235" y="360" />
+        <di:waypoint x="3345" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f23" bpmnElement="f23">
+        <di:waypoint x="3235" y="360" />
+        <di:waypoint x="3605" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f24" bpmnElement="f24">
+        <di:waypoint x="3495" y="510" />
+        <di:waypoint x="3605" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f25" bpmnElement="f25">
+        <di:waypoint x="3420" y="700" />
+        <di:waypoint x="3420" y="770" />
+        <di:waypoint x="1740" y="770" />
+        <di:waypoint x="1740" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f26" bpmnElement="f26">
+        <di:waypoint x="3655" y="360" />
+        <di:waypoint x="3822" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f27" bpmnElement="f27">
+        <di:waypoint x="3655" y="360" />
+        <di:waypoint x="3815" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f28" bpmnElement="f28">
+        <di:waypoint x="3865" y="360" />
+        <di:waypoint x="3975" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f29" bpmnElement="f29">
+        <di:waypoint x="3865" y="360" />
+        <di:waypoint x="4242" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f30" bpmnElement="f30">
+        <di:waypoint x="4125" y="210" />
+        <di:waypoint x="4242" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_assoc_Ann_21day" bpmnElement="assoc_Ann_21day">
+        <di:waypoint x="1825" y="260" />
+        <di:waypoint x="1740" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_assoc_Ann_1yr" bpmnElement="assoc_Ann_1yr">
+        <di:waypoint x="4402" y="282" />
+        <di:waypoint x="4260" y="342" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,7 @@
+streamlit>=1.32
+SpiffWorkflow>=2.0.0
+# Optional: clickable map location picker
+streamlit-folium>=0.20
+folium>=0.16
+# Optional: only needed for the Local GeoJSON (owned) overlay source
+shapely>=2.0

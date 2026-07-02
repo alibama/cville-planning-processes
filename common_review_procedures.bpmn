@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_CommonReview"
+                  targetNamespace="https://lexipedia.xyz/cville/dev-code"
+                  exporter="hand-authored" exporterVersion="1.0">
+  <bpmn:process id="Process_CommonReviewProcedures" name="Common Review Procedures (Cville Dev Code 5.2.1)" isExecutable="true">
+    <bpmn:documentation>Reusable application-intake spine common to all approval processes in Article 5 Div. 5.2 and Article 6 Subdivision (per 5.2.1.A). Intended to be invoked by a Call Activity from each specific process. Statutory anchor: Code of Virginia 15.2-2280 et seq.; intake/notice per 15.2-2204.</bpmn:documentation>
+
+    <bpmn:startEvent id="Start_AppInitiated" name="Application initiated">
+      <bpmn:documentation>Initiation per the calling process (e.g., owner/agent for rezoning 5.2.5.B.1, or City for public facilities). Pre-application conference, where required, is modeled in the calling process, not here.</bpmn:documentation>
+      <bpmn:outgoing>Flow_Start_Prepare</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_PrepareSubmit" name="Applicant: prepare &amp; submit application">
+      <bpmn:documentation>5.2.1.C.1 file with Neighborhood Development Services on required forms; 5.2.1.C.2 disclose real parties in interest (required for special use permit, Code amendment, special exception, variance); 5.2.1.C.3 pay fees in full (delinquent-tax evidence may be required). Submit per published schedule (5.2.1.C.5).</bpmn:documentation>
+      <bpmn:incoming>Flow_Start_Prepare</bpmn:incoming>
+      <bpmn:outgoing>Flow_Prepare_Route</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Route" name="Administrator: route to review bodies">
+      <bpmn:documentation>5.2.1.C.1.a and 5.2.1.C.6 the Administrator (NDS) routes materials to the appropriate review bodies. No materials go directly to PC, BZA, BAR, Mayor, or Council.</bpmn:documentation>
+      <bpmn:incoming>Flow_Prepare_Route</bpmn:incoming>
+      <bpmn:outgoing>Flow_Route_Complete</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Completeness" name="Administrator: completeness determination">
+      <bpmn:documentation>5.2.1.C.4 the Administrator has 5 days to review and determine completeness. Fees must be paid in full for an application to be considered complete (5.2.1.C.3.c).</bpmn:documentation>
+      <bpmn:incoming>Flow_Route_Complete</bpmn:incoming>
+      <bpmn:incoming>Flow_Revise_Recheck</bpmn:incoming>
+      <bpmn:incoming>Flow_NewFee_Recheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_Complete_Gateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="Boundary_5DayDeadline" name="5-day determination deadline" attachedToRef="Task_Completeness" cancelActivity="false">
+      <bpmn:documentation>Non-interrupting monitor of the 5.2.1.C.4 statutory 5-day completeness clock. Used for conformance checking against NDS case logs.</bpmn:documentation>
+      <bpmn:outgoing>Flow_Deadline_End</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="Timer_5Day">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">"P5D"</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_Complete" name="Application complete?" default="Flow_No_Notify">
+      <bpmn:incoming>Flow_Complete_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Yes_Complete</bpmn:outgoing>
+      <bpmn:outgoing>Flow_No_Notify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_NotifyDeficiencies" name="Administrator: notify applicant of deficiencies">
+      <bpmn:documentation>5.2.1.C.4.a applicant is notified of an incomplete application; the application does not proceed for review or decision until complete.</bpmn:documentation>
+      <bpmn:incoming>Flow_No_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify_Revise</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_SubmitRevised" name="Applicant: submit revised materials">
+      <bpmn:documentation>5.2.1.C.6 revised materials routed through NDS; must be submitted at least 30 days before a scheduled meeting/hearing (later accepted at Administrator discretion).</bpmn:documentation>
+      <bpmn:incoming>Flow_Notify_Revise</bpmn:incoming>
+      <bpmn:outgoing>Flow_Revise_Count</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_RevisionCount" name="3 revisions already used?" default="Flow_OverLimit_NewFee">
+      <bpmn:documentation>5.2.1.C.6.c up to 3 revisions before a new application fee is required for further review (Administrator may waive for circumstances beyond the applicant's control).</bpmn:documentation>
+      <bpmn:incoming>Flow_Revise_Count</bpmn:incoming>
+      <bpmn:outgoing>Flow_WithinLimit_Recheck</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OverLimit_NewFee</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_AssessNewFee" name="Administrator: assess new application fee">
+      <bpmn:documentation>5.2.1.C.6.c new application fee required for further review after 3 revisions, unless waived.</bpmn:documentation>
+      <bpmn:incoming>Flow_OverLimit_NewFee</bpmn:incoming>
+      <bpmn:outgoing>Flow_NewFee_Recheck</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_Complete" name="Complete &#8594; ready for review/decision">
+      <bpmn:documentation>Hand-off point. The calling process resumes with its specific review and decision steps (e.g., PC public hearing, Council decision).</bpmn:documentation>
+      <bpmn:incoming>Flow_Yes_Complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_DeadlineMonitor" name="Completeness overdue (&gt;5 days)">
+      <bpmn:incoming>Flow_Deadline_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Withdrawal may occur at any time (5.2.1.C.7) -->
+    <bpmn:subProcess id="SubProcess_Withdrawal" name="Withdrawal (may occur at any time, 5.2.1.C.7)" triggeredByEvent="true">
+      <bpmn:startEvent id="Start_Withdrawal" name="Withdrawal requested" isInterrupting="true">
+        <bpmn:documentation>5.2.1.C.7.a written notice to the Administrator at the applicant's discretion. 5.2.1.C.7.b no fee refunded.</bpmn:documentation>
+        <bpmn:outgoing>Flow_Wd_Announce</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="Msg_Withdrawal" />
+      </bpmn:startEvent>
+      <bpmn:userTask id="Task_AnnounceWithdrawal" name="Administrator: announce at advertised meeting/hearing">
+        <bpmn:documentation>5.2.1.C.7.c if a meeting/hearing was advertised, the withdrawal is announced at it.</bpmn:documentation>
+        <bpmn:incoming>Flow_Wd_Announce</bpmn:incoming>
+        <bpmn:outgoing>Flow_Wd_End</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:endEvent id="End_Withdrawn" name="Application withdrawn">
+        <bpmn:incoming>Flow_Wd_End</bpmn:incoming>
+        <bpmn:terminateEventDefinition id="Term_Withdrawn" />
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flow_Wd_Announce" sourceRef="Start_Withdrawal" targetRef="Task_AnnounceWithdrawal" />
+      <bpmn:sequenceFlow id="Flow_Wd_End" sourceRef="Task_AnnounceWithdrawal" targetRef="End_Withdrawn" />
+    </bpmn:subProcess>
+
+    <bpmn:sequenceFlow id="Flow_Start_Prepare" sourceRef="Start_AppInitiated" targetRef="Task_PrepareSubmit" />
+    <bpmn:sequenceFlow id="Flow_Prepare_Route" sourceRef="Task_PrepareSubmit" targetRef="Task_Route" />
+    <bpmn:sequenceFlow id="Flow_Route_Complete" sourceRef="Task_Route" targetRef="Task_Completeness" />
+    <bpmn:sequenceFlow id="Flow_Complete_Gateway" sourceRef="Task_Completeness" targetRef="Gateway_Complete" />
+    <bpmn:sequenceFlow id="Flow_Yes_Complete" name="complete" sourceRef="Gateway_Complete" targetRef="End_Complete">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">complete == True</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_No_Notify" name="incomplete" sourceRef="Gateway_Complete" targetRef="Task_NotifyDeficiencies" />
+    <bpmn:sequenceFlow id="Flow_Notify_Revise" sourceRef="Task_NotifyDeficiencies" targetRef="Task_SubmitRevised" />
+    <bpmn:sequenceFlow id="Flow_Revise_Count" sourceRef="Task_SubmitRevised" targetRef="Gateway_RevisionCount" />
+    <bpmn:sequenceFlow id="Flow_WithinLimit_Recheck" name="no (&#8804; 3)" sourceRef="Gateway_RevisionCount" targetRef="Task_Completeness">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">revisionCount &lt;= 3</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_OverLimit_NewFee" name="yes (&gt; 3)" sourceRef="Gateway_RevisionCount" targetRef="Task_AssessNewFee" />
+    <bpmn:sequenceFlow id="Flow_NewFee_Recheck" sourceRef="Task_AssessNewFee" targetRef="Task_Completeness" />
+    <bpmn:sequenceFlow id="Flow_Deadline_End" sourceRef="Boundary_5DayDeadline" targetRef="End_DeadlineMonitor" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="Diagram_CommonReview">
+    <bpmndi:BPMNPlane id="Plane_CommonReview" bpmnElement="Process_CommonReviewProcedures">
+      <bpmndi:BPMNShape id="Shape_Start_AppInitiated" bpmnElement="Start_AppInitiated">
+        <dc:Bounds x="152" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="140" y="225" width="62" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_PrepareSubmit" bpmnElement="Task_PrepareSubmit">
+        <dc:Bounds x="240" y="160" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_Route" bpmnElement="Task_Route">
+        <dc:Bounds x="420" y="160" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_Completeness" bpmnElement="Task_Completeness">
+        <dc:Bounds x="600" y="160" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Boundary_5DayDeadline" bpmnElement="Boundary_5DayDeadline">
+        <dc:Bounds x="647" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="688" y="232" width="78" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_Complete" bpmnElement="Gateway_Complete" isMarkerVisible="true">
+        <dc:Bounds x="785" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="778" y="145" width="64" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_Complete" bpmnElement="End_Complete">
+        <dc:Bounds x="952" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="930" y="225" width="82" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_DeadlineMonitor" bpmnElement="End_DeadlineMonitor">
+        <dc:Bounds x="647" y="320" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="628" y="363" width="76" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_NotifyDeficiencies" bpmnElement="Task_NotifyDeficiencies">
+        <dc:Bounds x="745" y="420" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_SubmitRevised" bpmnElement="Task_SubmitRevised">
+        <dc:Bounds x="560" y="420" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_RevisionCount" bpmnElement="Gateway_RevisionCount" isMarkerVisible="true">
+        <dc:Bounds x="455" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="440" y="492" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_AssessNewFee" bpmnElement="Task_AssessNewFee">
+        <dc:Bounds x="300" y="420" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Shape_SubProcess_Withdrawal" bpmnElement="SubProcess_Withdrawal" isExpanded="true">
+        <dc:Bounds x="240" y="580" width="520" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Start_Withdrawal" bpmnElement="Start_Withdrawal">
+        <dc:Bounds x="280" y="652" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="268" y="695" width="62" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_AnnounceWithdrawal" bpmnElement="Task_AnnounceWithdrawal">
+        <dc:Bounds x="380" y="630" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_Withdrawn" bpmnElement="End_Withdrawn">
+        <dc:Bounds x="612" y="652" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="598" y="695" width="66" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Edge_Start_Prepare" bpmnElement="Flow_Start_Prepare">
+        <di:waypoint x="188" y="200" /><di:waypoint x="240" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Prepare_Route" bpmnElement="Flow_Prepare_Route">
+        <di:waypoint x="370" y="200" /><di:waypoint x="420" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Route_Complete" bpmnElement="Flow_Route_Complete">
+        <di:waypoint x="550" y="200" /><di:waypoint x="600" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Complete_Gateway" bpmnElement="Flow_Complete_Gateway">
+        <di:waypoint x="730" y="200" /><di:waypoint x="785" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Yes_Complete" bpmnElement="Flow_Yes_Complete">
+        <di:waypoint x="835" y="200" /><di:waypoint x="952" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="868" y="182" width="42" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_No_Notify" bpmnElement="Flow_No_Notify">
+        <di:waypoint x="810" y="225" /><di:waypoint x="810" y="420" />
+        <bpmndi:BPMNLabel><dc:Bounds x="816" y="300" width="54" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Notify_Revise" bpmnElement="Flow_Notify_Revise">
+        <di:waypoint x="745" y="460" /><di:waypoint x="690" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Revise_Count" bpmnElement="Flow_Revise_Count">
+        <di:waypoint x="560" y="460" /><di:waypoint x="505" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_WithinLimit_Recheck" bpmnElement="Flow_WithinLimit_Recheck">
+        <di:waypoint x="480" y="435" /><di:waypoint x="480" y="280" /><di:waypoint x="640" y="280" /><di:waypoint x="640" y="240" />
+        <bpmndi:BPMNLabel><dc:Bounds x="486" y="300" width="60" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_OverLimit_NewFee" bpmnElement="Flow_OverLimit_NewFee">
+        <di:waypoint x="455" y="460" /><di:waypoint x="430" y="460" />
+        <bpmndi:BPMNLabel><dc:Bounds x="420" y="442" width="50" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_NewFee_Recheck" bpmnElement="Flow_NewFee_Recheck">
+        <di:waypoint x="365" y="420" /><di:waypoint x="365" y="290" /><di:waypoint x="665" y="290" /><di:waypoint x="665" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Deadline_End" bpmnElement="Flow_Deadline_End">
+        <di:waypoint x="665" y="258" /><di:waypoint x="665" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Wd_Announce" bpmnElement="Flow_Wd_Announce">
+        <di:waypoint x="316" y="670" /><di:waypoint x="380" y="670" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Wd_End" bpmnElement="Flow_Wd_End">
+        <di:waypoint x="540" y="670" /><di:waypoint x="612" y="670" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
