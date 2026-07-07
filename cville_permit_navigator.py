@@ -19,7 +19,7 @@ import streamlit.components.v1 as components
 
 from cville_core import (
     PermitNavigator, ManualOverlayProvider, ArcGISOverlayProvider,
-    LocalGeoJSONOverlayProvider, OverlayResult, OVERLAY_CATEGORIES, OVERLAY_COLORS,
+    LocalGeoJSONOverlayProvider, OVERLAY_CATEGORIES, OVERLAY_COLORS,
 )
 from bpmn_build import build_stub_bpmn
 
@@ -95,7 +95,7 @@ st.set_page_config(page_title="Cville Approval Navigator", page_icon="\U0001F3DB
 with st.sidebar:
     st.markdown("### Charlottesville\nDevelopment Code approval navigator")
     st.caption("Informational only \u2014 not a legal determination.")
-    st.caption("\U0001F527 build 3 \u2014 local overlay detection + Reload layers")
+    st.caption("\U0001F527 build 4 \u2014 overlay detection fix")
     with st.expander("\u2699\ufe0f Advanced (files & GIS)", expanded=False):
         here = os.path.dirname(os.path.abspath(__file__))
         selector_path = st.text_input("Selector DMN", os.path.join(here, "approval_process_selector.dmn"))
@@ -347,9 +347,6 @@ with st.expander("Adjust overlays"):
 
 overlays = ManualOverlayProvider().resolve(overlays=eff_over, floodplain=eff_flood,
                                            critical_slopes=eff_slope)
-
-overlays = ManualOverlayProvider().resolve(overlays=ov_over, floodplain=ov_flood,
-                                           critical_slopes=ov_slope)
 
 st.divider()
 
