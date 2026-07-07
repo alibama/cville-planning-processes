@@ -1,18 +1,15 @@
 """
-cville_permit_navigator.py — Streamlit front end for the Charlottesville
-Development Code approval navigator.
+cville_permit_navigator.py — Charlottesville Development Code approval navigator.
 
-Pick a location -> SEE the zoning overlay footprints on the map and verify them ->
-resolve overlays at the point -> describe the project -> the selector DMN routes
-it to the required approval process(es), the authority matrix DMN says who
-recommends/decides/hears appeals, and full process models (e.g. 5.2.5 rezoning,
-which calls the 5.2.1 spine) are shown inline.
+Focused flow: pick a location on the map, describe the project, and SEE the
+approval process that has to happen (rendered from the BPMN, drill into the
+5.2.1 spine). Everything else (files, GIS config, authority tables, the shared
+intake, and the live SpiffWorkflow stepper) is tucked away, collapsed.
 
 Run:
     pip install -r requirements.txt
     streamlit run cville_permit_navigator.py
 """
-
 from __future__ import annotations
 
 import os
@@ -34,6 +31,9 @@ except Exception:  # noqa: BLE001
     HAVE_MAP = False
 
 
+# --------------------------------------------------------------------------- #
+#  Inline BPMN viewer (bpmn-js from CDN); click the call activity -> spine     #
+# --------------------------------------------------------------------------- #
 _BPMN_VIEWER = """
 <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/diagram-js.css">
 <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-js.css">
@@ -48,7 +48,7 @@ _BPMN_VIEWER = """
 <div id="wrap">
   <div id="bar"><button id="back">&#8592; back to process</button></div>
   <div id="c"></div>
-  <div id="hint">Click &ldquo;Common Review Procedures (5.2.1)&rdquo; to drill into the spine &middot; scroll to zoom, drag to pan</div>
+  <div id="hint">Click &ldquo;Common Review Procedures (5.2.1)&rdquo; to drill into the shared intake &middot; scroll to zoom, drag to pan</div>
 </div>
 <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
 <script>
@@ -69,12 +69,13 @@ _BPMN_VIEWER = """
 """
 
 
-def render_bpmn_viewer(main_xml: str, spine_xml: str, height: int = 520):
+def render_bpmn_viewer(main_xml: str, spine_xml: str, height: int = 540):
     mb = base64.b64encode(main_xml.encode("utf-8")).decode("ascii")
     sb = base64.b64encode(spine_xml.encode("utf-8")).decode("ascii")
     html = (_BPMN_VIEWER.replace("__MAIN__", mb).replace("__SPINE__", sb)
             .replace("__H__", str(height)))
     components.html(html, height=height + 24, scrolling=False)
+
 
 CVILLE_CENTER = (38.0293, -78.4767)
 ACTION_TYPES = [
@@ -83,63 +84,40 @@ ACTION_TYPES = [
     "BuildingOrExteriorAlteration", "Sign", "TemporaryUse", "TreeRemoval",
 ]
 USE_PERMISSIONS = ["ByRight", "SpecialUse", "NotPermitted"]
-KIND_ICON = {"start": "\u25B6", "end": "\u23F9", "task": "\u25AB",
-             "gateway": "\u25C6", "call": "\u2b95", "subprocess": "\u25A4"}
 
-st.set_page_config(page_title="Cville Permit Navigator", page_icon="\U0001F3DB", layout="wide")
-st.title("\U0001F3DB Charlottesville Development Code \u2014 Approval Navigator")
-st.caption("Overlay footprints from the city GIS + selector/authority DMNs + full BPMN process "
-           "models, executed live via SpiffWorkflow. Informational only \u2014 not a legal determination.")
+st.set_page_config(page_title="Cville Approval Navigator", page_icon="\U0001F3DB", layout="wide")
 
 
 # --------------------------------------------------------------------------- #
-#  Sidebar                                                                    #
+#  Advanced settings — collapsed, off to the side. Sensible defaults so the    #
+#  app works untouched.                                                        #
 # --------------------------------------------------------------------------- #
 with st.sidebar:
-    st.header("Artifacts")
-    here = os.path.dirname(os.path.abspath(__file__))
-    selector_path = st.text_input("Selector DMN", os.path.join(here, "approval_process_selector.dmn"))
-    authority_path = st.text_input("Authority matrix DMN", os.path.join(here, "review_authority_matrix.dmn"))
-    spine_path = st.text_input("Spine BPMN", os.path.join(here, "common_review_procedures.bpmn"))
-    rezoning_path = st.text_input("Rezoning BPMN (5.2.5)", os.path.join(here, "cville_rezoning_5_2_5.bpmn"))
-
-    st.header("Overlay source")
-    src = st.radio("How should overlays be resolved & drawn?",
-                   ["ArcGIS (live, city GIS)", "Local GeoJSON (owned)", "Manual entry"])
-
-    arcgis_provider = None
-    local_registry: dict[str, str] = {}
-    if src == "ArcGIS (live, city GIS)":
-        root = st.text_input("REST root", ArcGISOverlayProvider.DEFAULT_ROOT)
-        svc_text = st.text_area("Services to scan (one per line)",
-                                "\n".join(ArcGISOverlayProvider.DEFAULT_SERVICES), height=70)
-        services = [s.strip() for s in svc_text.splitlines() if s.strip()]
-        arcgis_provider = ArcGISOverlayProvider(root=root, services=services)
-        if st.session_state.get("arcgis_plan"):
-            arcgis_provider.plan = st.session_state["arcgis_plan"]
-        if st.button("Discover overlay layers"):
-            with st.spinner("Scanning services & fetching footprints\u2026"):
-                st.session_state["arcgis_plan"] = arcgis_provider.discover()
-                try:
-                    st.session_state["footprints"] = arcgis_provider.overlay_geojson()
-                except Exception as exc:  # noqa: BLE001
-                    st.session_state["footprints"] = []
-                    st.warning(f"Layers found, but footprint fetch failed: {exc}")
-        if st.session_state.get("arcgis_plan"):
-            with st.expander("Discovered layers", expanded=True):
-                for sig, targets in st.session_state["arcgis_plan"].items():
-                    if sig == "_errors":
-                        for u, _, msg in targets:
-                            st.error(f"{u}: {msg}")
-                    else:
-                        st.markdown(f"**{sig}** \u2014 " +
-                                    "; ".join(f"{n} (id {i})" for _, i, n in targets))
-    elif src == "Local GeoJSON (owned)":
-        st.caption("Path to a GeoJSON per signal (blank = skip).")
-        for sig in OVERLAY_CATEGORIES + ["floodplain", "critical_slopes"]:
-            p = st.text_input(f"{sig} GeoJSON", key=f"geo_{sig}")
-            if p.strip():
-                local_registry[sig] = p.strip()
+    st.markdown("### Charlottesville\nDevelopment Code approval navigator")
+    st.caption("Informational only \u2014 not a legal determination.")
+    with st.expander("\u2699\ufe0f Advanced (files & GIS)", expanded=False):
+        here = os.path.dirname(os.path.abspath(__file__))
+        selector_path = st.text_input("Selector DMN", os.path.join(here, "approval_process_selector.dmn"))
+        authority_path = st.text_input("Authority matrix DMN", os.path.join(here, "review_authority_matrix.dmn"))
+        spine_path = st.text_input("Spine BPMN", os.path.join(here, "common_review_procedures.bpmn"))
+        rezoning_path = st.text_input("Rezoning BPMN (5.2.5)", os.path.join(here, "cville_rezoning_5_2_5.bpmn"))
+        st.divider()
+        src = st.radio("Overlay source",
+                       ["ArcGIS (live, city GIS)", "Local GeoJSON (owned)", "Manual entry"],
+                       help="How overlays at the pin are detected. Manual = skip the GIS entirely.")
+        arcgis_root = ArcGISOverlayProvider.DEFAULT_ROOT
+        arcgis_services = tuple(ArcGISOverlayProvider.DEFAULT_SERVICES)
+        local_registry: dict[str, str] = {}
+        if src == "ArcGIS (live, city GIS)":
+            arcgis_root = st.text_input("REST root", ArcGISOverlayProvider.DEFAULT_ROOT)
+            svc_text = st.text_area("Services to scan (one per line)",
+                                    "\n".join(ArcGISOverlayProvider.DEFAULT_SERVICES), height=70)
+            arcgis_services = tuple(s.strip() for s in svc_text.splitlines() if s.strip())
+        elif src == "Local GeoJSON (owned)":
+            for sig in OVERLAY_CATEGORIES + ["floodplain", "critical_slopes"]:
+                pth = st.text_input(f"{sig} GeoJSON", key=f"geo_{sig}")
+                if pth.strip():
+                    local_registry[sig] = pth.strip()
 
 
 @st.cache_resource(show_spinner=False)
@@ -153,268 +131,246 @@ def load_navigator(sel, auth, spine, rez):
 try:
     nav = load_navigator(selector_path, authority_path, spine_path, rezoning_path)
 except Exception as exc:  # noqa: BLE001
-    st.error(f"Could not load artifacts: {exc}")
+    st.error(f"Could not load artifacts (open **Advanced** in the sidebar to fix paths): {exc}")
     st.stop()
 
 
 # --------------------------------------------------------------------------- #
-#  Overlay footprints (fetch + cache)                                          #
+#  Silent, cached overlay detection for a point                                #
 # --------------------------------------------------------------------------- #
-def fetch_footprints():
-    if src == "ArcGIS (live, city GIS)" and arcgis_provider is not None:
-        return arcgis_provider.overlay_geojson()
-    if src == "Local GeoJSON (owned)" and local_registry:
-        return LocalGeoJSONOverlayProvider(local_registry).overlay_geojson()
-    return []
+@st.cache_resource(show_spinner="Scanning city GIS layers\u2026")
+def _arcgis_ready(root: str, services: tuple):
+    prov = ArcGISOverlayProvider(root=root, services=list(services))
+    prov.plan = prov.discover()
+    return prov
 
 
-def color_chip(sig):
-    c = OVERLAY_COLORS.get(sig, "#666")
-    return f"<span style='display:inline-block;width:12px;height:12px;background:{c};" \
-           f"border:1px solid #333;margin-right:6px;vertical-align:middle'></span>"
-
-
-st.subheader("1. Location & overlay footprints")
-lat = float(st.session_state.get("lat", CVILLE_CENTER[0]))
-lng = float(st.session_state.get("lng", CVILLE_CENTER[1]))
-
-top = st.columns([1, 1, 1, 2])
-with top[0]:
-    if st.button("Load / refresh footprints", type="secondary",
-                 disabled=(src == "Manual entry")):
-        with st.spinner("Fetching overlay geometry\u2026"):
-            try:
-                st.session_state["footprints"] = fetch_footprints()
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"Footprint fetch failed: {exc}")
-footprints = st.session_state.get("footprints", [])
-
-# Verification table — the "am I seeing the right stuff" check.
-if footprints:
-    rows = [{"": "", "Signal": r["signal"], "Layer": r["layer"],
-             "Features": r.get("count", 0),
-             "Status": r.get("error", "ok")} for r in footprints]
-    st.markdown("**Overlay layers pulled from the API** (verify these are the right ones):")
-    st.dataframe(
-        [{"Signal": r["signal"], "Layer": r["layer"],
-          "Features": r.get("count", 0), "Status": r.get("error", "ok")} for r in footprints],
-        hide_index=True, use_container_width=True)
-    legend = " &nbsp; ".join(color_chip(r["signal"]) + r["signal"]
-                             for r in footprints if r.get("geojson"))
-    st.markdown("Legend: " + legend, unsafe_allow_html=True)
-elif src != "Manual entry":
-    st.info("Click **Load / refresh footprints** to draw the overlay layers on the map "
-            "and confirm they're the right ones. (ArcGIS: run **Discover overlay layers** first.)")
-
-mcol, ccol = st.columns([3, 2])
-with ccol:
-    lat = st.number_input("Latitude", value=lat, format="%.6f")
-    lng = st.number_input("Longitude", value=lng, format="%.6f")
-    st.session_state["lat"], st.session_state["lng"] = lat, lng
-    resolve_clicked = st.button("Resolve overlays at this point", type="primary")
-
-with mcol:
-    if HAVE_MAP:
-        fmap = folium.Map(location=[lat, lng], zoom_start=13, control_scale=True)
-        drawn = 0
-        for r in footprints:
-            gj = r.get("geojson")
-            if not gj or not gj.get("features"):
-                continue
-            c = OVERLAY_COLORS.get(r["signal"], "#666666")
-            folium.GeoJson(
-                gj, name=f'{r["signal"]}: {r["layer"]} ({r["count"]})',
-                style_function=lambda _f, c=c: {
-                    "color": c, "weight": 2, "fillColor": c, "fillOpacity": 0.28},
-            ).add_to(fmap)
-            drawn += 1
-        folium.Marker([lat, lng], tooltip="Selected point",
-                      icon=folium.Icon(color="black", icon="crosshairs", prefix="fa")).add_to(fmap)
-        if drawn:
-            folium.LayerControl(collapsed=False).add_to(fmap)
-        out = st_folium(fmap, height=460, width=None, key="map")
-        if out and out.get("last_clicked"):
-            st.session_state["lat"] = out["last_clicked"]["lat"]
-            st.session_state["lng"] = out["last_clicked"]["lng"]
-            st.caption("Map click captured \u2014 update the fields or re-run resolve to use it.")
-    else:
-        st.warning("Install `streamlit-folium` + `folium` to see the map and overlay footprints.")
-
-
-# --------------------------------------------------------------------------- #
-#  2. Overlays at the point (auto-detected, editable)                          #
-# --------------------------------------------------------------------------- #
-st.subheader("2. Overlays at this point")
-detected: OverlayResult | None = st.session_state.get("detected")
-if resolve_clicked:
+@st.cache_data(show_spinner=False)
+def detect_overlays(source: str, root: str, services: tuple, lat: float, lng: float,
+                    local_items: tuple):
+    """Return (overlays:set, floodplain, slopes, note). Best-effort & non-fatal."""
     try:
-        if src == "ArcGIS (live, city GIS)":
-            detected = arcgis_provider.resolve(lat, lng)
-        elif src == "Local GeoJSON (owned)":
-            detected = LocalGeoJSONOverlayProvider(local_registry).resolve(lat, lng)
+        if source == "ArcGIS (live, city GIS)":
+            r = _arcgis_ready(root, services).resolve(lat, lng)
+        elif source == "Local GeoJSON (owned)" and local_items:
+            r = LocalGeoJSONOverlayProvider(dict(local_items)).resolve(lat, lng)
         else:
-            detected = OverlayResult(source="manual")
-        st.session_state["detected"] = detected
+            return (set(), False, False, "manual")
+        return (set(r.overlays), r.floodplain, r.critical_slopes, "")
     except Exception as exc:  # noqa: BLE001
-        st.error(f"Overlay lookup failed: {exc}")
-        detected = OverlayResult(source="error")
+        return (set(), False, False, f"detection unavailable: {exc}")
 
-det = detected or OverlayResult()
-if det.source not in ("manual", "error", ""):
-    hits = sorted(det.overlays) + (["floodplain"] if det.floodplain else []) \
-        + (["critical slopes"] if det.critical_slopes else [])
-    st.success(f"Detected via {det.source}: {', '.join(hits)}" if hits
-               else f"No overlays detected at this point via {det.source}.")
-    if det.checks:
-        st.markdown("**Every layer tested at this point** (so the overrides below make sense):")
-        st.dataframe(
-            [{"Result": "\u2705 in" if c["hit"] else ("\u26a0\ufe0f error" if c["error"] else "\u2014 not in"),
-              "Signal": c["signal"], "Layer": c["layer"], "Note": c["error"] or ""}
-             for c in det.checks],
-            hide_index=True, use_container_width=True)
-    if det.details:
-        with st.expander("Raw lookup detail"):
-            st.json(det.details)
 
-st.caption("Detection pre-fills these; override as needed. These are what the model uses.")
-oc1, oc2 = st.columns(2)
-chosen = set()
-with oc1:
-    for cat in OVERLAY_CATEGORIES:
-        if st.checkbox(cat, value=cat in det.overlays, key=f"ov_{cat}"):
-            chosen.add(cat)
-with oc2:
-    floodplain = st.checkbox("In floodplain", value=det.floodplain, key="ov_flood")
-    slopes = st.checkbox("Critical slopes impacted", value=det.critical_slopes, key="ov_slope")
-
-overlays = ManualOverlayProvider().resolve(overlays=chosen, floodplain=floodplain, critical_slopes=slopes)
+def chip(label, color="#2b8cbe"):
+    return (f"<span style='display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;"
+            f"background:{color}1a;border:1px solid {color};color:{color};font-size:12px'>{label}</span>")
 
 
 # --------------------------------------------------------------------------- #
-#  3. Project                                                                  #
+#  1. LOCATION                                                                 #
 # --------------------------------------------------------------------------- #
-st.subheader("3. Project")
-pc1, pc2, pc3 = st.columns(3)
-with pc1:
+if "pt" not in st.session_state:
+    st.session_state.pt = list(CVILLE_CENTER)
+if "mcenter" not in st.session_state:
+    st.session_state.mcenter = list(CVILLE_CENTER)
+if "mzoom" not in st.session_state:
+    st.session_state.mzoom = 16
+
+st.subheader("1 \u00b7 Where is the parcel?")
+pt = st.session_state.pt
+
+if HAVE_MAP:
+    fmap = folium.Map(location=st.session_state.mcenter, zoom_start=st.session_state.mzoom,
+                      control_scale=True)
+    folium.Marker(pt, tooltip="Parcel",
+                  icon=folium.Icon(color="darkblue", icon="crosshairs", prefix="fa")).add_to(fmap)
+    out = st_folium(fmap, key="map", center=st.session_state.mcenter, zoom=st.session_state.mzoom,
+                    height=440, use_container_width=True,
+                    returned_objects=["last_clicked", "center", "zoom"])
+    st.caption("Click the map to set the parcel. The view stays where you leave it.")
+    if out:
+        if out.get("center"):
+            st.session_state.mcenter = [out["center"]["lat"], out["center"]["lng"]]
+        if out.get("zoom") is not None:
+            st.session_state.mzoom = out["zoom"]
+        lc = out.get("last_clicked")
+        if lc:
+            newpt = [round(lc["lat"], 6), round(lc["lng"], 6)]
+            if newpt != st.session_state.pt:
+                st.session_state.pt = newpt
+                st.rerun()
+else:
+    st.warning("Install `streamlit-folium` + `folium` for the map; entering coordinates instead.")
+
+with st.expander("Enter exact coordinates"):
+    ec = st.columns(2)
+    nlat = ec[0].number_input("Latitude", value=float(pt[0]), format="%.6f")
+    nlng = ec[1].number_input("Longitude", value=float(pt[1]), format="%.6f")
+    if [round(nlat, 6), round(nlng, 6)] != st.session_state.pt:
+        st.session_state.pt = [round(nlat, 6), round(nlng, 6)]
+        st.rerun()
+
+lat, lng = st.session_state.pt
+
+# Detect overlays for this point (silent, cached), then let the model use them.
+det_over, det_flood, det_slope, det_note = detect_overlays(
+    src, arcgis_root, arcgis_services, lat, lng, tuple(sorted(local_registry.items())))
+
+# apply any manual overrides captured previously this session
+ov_over = set(st.session_state.get("ovr_over", det_over))
+ov_flood = st.session_state.get("ovr_flood", det_flood)
+ov_slope = st.session_state.get("ovr_slope", det_slope)
+
+badge_bits = [chip(o, OVERLAY_COLORS.get(o, "#2b8cbe")) for o in sorted(ov_over)]
+if ov_flood:
+    badge_bits.append(chip("floodplain", OVERLAY_COLORS.get("floodplain", "#2b8cbe")))
+if ov_slope:
+    badge_bits.append(chip("critical slopes", "#e6550d"))
+if badge_bits:
+    st.markdown("Overlays here: " + " ".join(badge_bits), unsafe_allow_html=True)
+elif det_note.startswith("detection"):
+    st.caption(det_note + " \u2014 set overlays manually below if needed.")
+else:
+    st.caption("No special overlays detected at this point.")
+
+with st.expander("Adjust overlays"):
+    st.caption("Detection pre-fills these; change them if you know better. These drive the routing.")
+    ac = st.columns(2)
+    chosen = set()
+    with ac[0]:
+        for cat in OVERLAY_CATEGORIES:
+            if st.checkbox(cat, value=cat in ov_over, key=f"ov_{cat}"):
+                chosen.add(cat)
+    with ac[1]:
+        f = st.checkbox("In floodplain", value=ov_flood, key="ov_flood")
+        s = st.checkbox("Critical slopes impacted", value=ov_slope, key="ov_slope")
+    st.session_state["ovr_over"] = chosen
+    st.session_state["ovr_flood"] = f
+    st.session_state["ovr_slope"] = s
+    ov_over, ov_flood, ov_slope = chosen, f, s
+
+overlays = ManualOverlayProvider().resolve(overlays=ov_over, floodplain=ov_flood,
+                                           critical_slopes=ov_slope)
+
+st.divider()
+
+
+# --------------------------------------------------------------------------- #
+#  2. PROJECT                                                                  #
+# --------------------------------------------------------------------------- #
+st.subheader("2 \u00b7 What are you doing?")
+pcol = st.columns([2, 2, 3])
+with pcol[0]:
     action = st.selectbox("Project action", ACTION_TYPES)
-with pc2:
+with pcol[1]:
     use_perm = st.selectbox("Use permission in district", USE_PERMISSIONS)
-with pc3:
-    relief = st.checkbox("Seeking dimensional relief (setback, height, etc.)")
+with pcol[2]:
+    relief = st.checkbox("Seeking dimensional relief (setback, height, \u2026)")
+
+st.divider()
 
 
 # --------------------------------------------------------------------------- #
-#  4. Required processes + authority + full model                              #
+#  3. THE PROCESS  (the main event)                                            #
 # --------------------------------------------------------------------------- #
-st.subheader("4. Required approval process(es)")
+st.subheader("3 \u00b7 The process that has to happen")
 procs = nav.required_processes(action_type=action, overlays=overlays,
                                use_permission=use_perm, dimensional_relief=relief)
+
 if not procs:
-    st.info("No approval process matched. Adjust the project action or overlays above.")
-else:
-    if len(overlays.overlay_list()) > 1:
-        st.caption("Parcel sits in multiple overlays \u2014 selector run per overlay, results unioned.")
-    for p in procs:
-        with st.container(border=True):
-            st.markdown(f"**{p}**")
-            rows = []
-            for r in nav.route(p):
-                if r.section and r.authority:
-                    a = r.authority
-                    rows.append({"Sec.": r.section, "Review / Recommend": a.get("recommend", "\u2014"),
-                                 "Final Decision": a.get("decide", "\u2014"),
-                                 "Appeal": a.get("appeal", "\u2014"), "Hearing": a.get("hearing", "\u2014")})
-                elif r.section:
-                    rows.append({"Sec.": r.section, "Review / Recommend": "(no matrix row)",
-                                 "Final Decision": "", "Appeal": "", "Hearing": ""})
-            if rows:
-                st.dataframe(rows, hide_index=True, use_container_width=True)
+    st.info("No approval process matched. Adjust the action or overlays above.")
+    st.stop()
 
-
-# --------------------------------------------------------------------------- #
-#  Process model diagram — redraws on selection, drill into the spine          #
-# --------------------------------------------------------------------------- #
+# routed sections (dedup, keep label)
 sections = {}
 for p in procs:
     for r in nav.route(p):
         if r.section:
             sections.setdefault(r.section, p)
 
-if sections:
-    st.subheader("Process model \u2014 pick a process to render it")
-    st.caption("Each choice redraws the actual BPMN. Processes without a hand-built model are "
-               "generated on the fly from the authority matrix. Click the spine activity to drill in.")
-    opts = list(sections)
-    choice = st.radio("Process", opts, format_func=lambda s: sections[s], horizontal=True,
-                      label_visibility="collapsed")
-    try:
-        if choice == "5.2.5" and os.path.exists(rezoning_path):
-            main_xml = open(rezoning_path, encoding="utf-8").read()
-            st.caption("Hand-built **5.2.5** model \u2014 the call activity invokes the 5.2.1 spine.")
-        else:
-            main_xml = build_stub_bpmn(choice, nav.authority_for(choice))
-            st.caption(f"Overview of **{choice}** generated from the authority matrix.")
-        spine_xml = open(spine_path, encoding="utf-8").read()
-        render_bpmn_viewer(main_xml, spine_xml, height=520)
-    except Exception as exc:  # noqa: BLE001
-        st.error(f"Could not render model: {exc}")
+
+def authority_sentence(a: dict) -> str:
+    if not a:
+        return ""
+    parts = []
+    if a.get("recommend") and a["recommend"] not in ("\u2014", "-"):
+        parts.append(f"{a['recommend']} reviews & recommends")
+    if a.get("decide") and a["decide"] not in ("\u2014", "-"):
+        parts.append(f"**{a['decide']} decides**")
+    if a.get("appeal") and a["appeal"] not in ("\u2014", "-"):
+        parts.append(f"appeal to {a['appeal']}")
+    s = "; ".join(parts)
+    h = a.get("hearing")
+    if h and h not in ("None", "\u2014", "-"):
+        s += f" \u2014 {h}"
+    return s
 
 
-# --------------------------------------------------------------------------- #
-#  5. Common Review Procedures spine (shared intake)                           #
-# --------------------------------------------------------------------------- #
-st.subheader("5. Common Review Procedures intake (5.2.1)")
-st.caption("Every routed process runs this shared intake spine first. Steps read from the BPMN.")
-steps = nav.spine_steps()
-sc1, sc2 = st.columns([3, 2])
-with sc1:
-    for s in steps:
-        st.checkbox(s["name"], key=f"spine_{s['id']}", help=s["doc"] or None)
-with sc2:
-    revisions = st.number_input("Revisions used", min_value=0, max_value=10, value=0)
-    if revisions > 3:
-        st.warning("New application fee required for further review (5.2.1.C.6.c).")
-    with st.expander("Statutory clocks & withdrawal", expanded=True):
-        for c in nav.spine_clocks():
-            st.markdown(f"- {c}")
-
-
-# --------------------------------------------------------------------------- #
-#  6. Run the process live (SpiffWorkflow)                                     #
-# --------------------------------------------------------------------------- #
-st.subheader("6. Run the process live (SpiffWorkflow)")
-runnable = []
-for p in procs:
-    for r in nav.route(p):
-        if r.section in nav.models and r.section not in runnable:
-            runnable.append(r.section)
-
-if not runnable:
-    st.caption("No routed process has an executable model yet. Rezoning (5.2.5) is the "
-               "first one built \u2014 pick a rezoning above to run it live.")
+if len(sections) > 1:
+    choice = st.radio("This project triggers more than one process:", list(sections),
+                      format_func=lambda s: sections[s], horizontal=True)
 else:
-    pick = st.selectbox("Process to execute", runnable)
-    with st.expander("Decision variables (seeded up front; change and restart to explore branches)"):
-        dc1, dc2, dc3 = st.columns(3)
-        with dc1:
+    choice = next(iter(sections))
+    st.markdown(f"Your project requires: **{sections[choice]}**")
+
+auth = nav.authority_for(choice)
+sentence = authority_sentence(auth)
+if sentence:
+    st.markdown(f"\u2192 {sentence}")
+
+# The diagram.
+try:
+    if choice == "5.2.5" and os.path.exists(rezoning_path):
+        main_xml = open(rezoning_path, encoding="utf-8").read()
+    else:
+        main_xml = build_stub_bpmn(choice, auth)
+    spine_xml = open(spine_path, encoding="utf-8").read()
+    render_bpmn_viewer(main_xml, spine_xml, height=540)
+except Exception as exc:  # noqa: BLE001
+    st.error(f"Could not render the process model: {exc}")
+
+
+# --------------------------------------------------------------------------- #
+#  Everything else — collapsed, out of the way                                 #
+# --------------------------------------------------------------------------- #
+with st.expander("Who decides \u2014 authority detail"):
+    for p in procs:
+        rows = []
+        for r in nav.route(p):
+            if r.section and r.authority:
+                a = r.authority
+                rows.append({"Sec.": r.section, "Review / Recommend": a.get("recommend", "\u2014"),
+                             "Final Decision": a.get("decide", "\u2014"),
+                             "Appeal": a.get("appeal", "\u2014"), "Hearing": a.get("hearing", "\u2014")})
+        if rows:
+            st.markdown(f"**{p}**")
+            st.dataframe(rows, hide_index=True, use_container_width=True)
+
+with st.expander("Shared intake \u2014 Common Review Procedures (5.2.1)"):
+    st.caption("Every routed process runs this intake first.")
+    for s in nav.spine_steps():
+        st.markdown(f"\u25AB {s['name']}", help=s["doc"] or None)
+    for c in nav.spine_clocks():
+        st.caption(f"\u2022 {c}")
+
+runnable = [s for s in sections if s in nav.models]
+if runnable:
+    with st.expander("Step through it live (SpiffWorkflow)"):
+        pick = runnable[0] if len(runnable) == 1 else st.selectbox("Process", runnable)
+        with st.popover("Decision variables"):
             pre_waived = st.checkbox("Pre-application conference waived", value=True)
             complete_ok = st.checkbox("Application complete on first submittal", value=True)
-        with dc2:
             in_hist = st.checkbox("Property in ADC/HC/IPP overlay",
                                   value=bool(overlays.overlays & {"ADC", "HC", "IndividuallyProtected"}))
             has_proffers = st.checkbox("Includes proffered conditions", value=True)
-        with dc3:
             proffers_changed = st.checkbox("Proffers changed at PC hearing", value=False)
             council_decision = st.selectbox("Council decision", ["approve", "deny"])
-        council_mod = st.selectbox("Council proffer-modification handling",
-                                   ["decline", "continue", "refer"])
-    seed = {"preAppWaived": pre_waived, "complete": complete_ok, "inHistoricOverlay": in_hist,
-            "hasProffers": has_proffers, "proffersChangedAtHearing": proffers_changed,
-            "councilDecision": council_decision, "councilModOption": council_mod,
-            "revisionCount": 0}
-
-    bcol1, bcol2 = st.columns([1, 3])
-    with bcol1:
+            council_mod = st.selectbox("Council proffer-modification handling",
+                                       ["decline", "continue", "refer"])
+        seed = {"preAppWaived": pre_waived, "complete": complete_ok, "inHistoricOverlay": in_hist,
+                "hasProffers": has_proffers, "proffersChangedAtHearing": proffers_changed,
+                "councilDecision": council_decision, "councilModOption": council_mod,
+                "revisionCount": 0}
         if st.button("\u25B6 Start / restart run", type="primary"):
             try:
                 st.session_state["runner"] = nav.workflow_runner(pick, seed=seed)
@@ -422,27 +378,23 @@ else:
             except Exception as exc:  # noqa: BLE001
                 st.session_state["runner"] = None
                 st.error(f"Could not start workflow: {exc}")
-
-    runner = st.session_state.get("runner")
-    if runner is not None and st.session_state.get("runner_section") == pick:
-        state = runner.state()
-        colA, colB = st.columns(2)
-        with colA:
-            st.markdown("**Completed**")
-            if state["history"]:
+        runner = st.session_state.get("runner")
+        if runner is not None and st.session_state.get("runner_section") == pick:
+            state = runner.state()
+            colA, colB = st.columns(2)
+            with colA:
+                st.markdown("**Completed**")
                 for h in state["history"]:
                     st.markdown(f"\u2705 {h}")
-            else:
-                st.caption("nothing yet")
-        with colB:
-            st.markdown("**Ready now** \u2014 click to advance")
-            if state["ready"]:
+                if not state["history"]:
+                    st.caption("nothing yet")
+            with colB:
+                st.markdown("**Ready now**")
                 for t in state["ready"]:
                     if st.button(f"\u25B8 {t['name']}", key=f"run_{t['id']}", help=t["doc"] or None):
                         runner.complete(t["id"])
                         st.rerun()
-            elif not state["complete"]:
-                st.caption("(engine step / waiting)")
-        if state["complete"]:
-            end = ", ".join(state["ended"]) or "end"
-            st.success(f"Process complete \u2014 reached: {end}")
+                if not state["ready"] and not state["complete"]:
+                    st.caption("(engine step / waiting)")
+            if state["complete"]:
+                st.success(f"Complete \u2014 reached: {', '.join(state['ended']) or 'end'}")
