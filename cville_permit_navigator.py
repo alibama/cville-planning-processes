@@ -95,6 +95,7 @@ st.set_page_config(page_title="Cville Approval Navigator", page_icon="\U0001F3DB
 with st.sidebar:
     st.markdown("### Charlottesville\nDevelopment Code approval navigator")
     st.caption("Informational only \u2014 not a legal determination.")
+    st.caption("\U0001F527 build 3 \u2014 local overlay detection + Reload layers")
     with st.expander("\u2699\ufe0f Advanced (files & GIS)", expanded=False):
         here = os.path.dirname(os.path.abspath(__file__))
         selector_path = st.text_input("Selector DMN", os.path.join(here, "approval_process_selector.dmn"))
@@ -136,34 +137,79 @@ except Exception as exc:  # noqa: BLE001
 
 
 # --------------------------------------------------------------------------- #
-#  Silent, cached overlay detection for a point                                #
+#  Overlay districts: load geometry once (visible), detect the pin locally      #
 # --------------------------------------------------------------------------- #
-@st.cache_resource(show_spinner="Scanning city GIS layers\u2026")
-def _arcgis_ready(root: str, services: tuple):
-    prov = ArcGISOverlayProvider(root=root, services=list(services))
-    prov.plan = prov.discover()
-    return prov
-
-
-@st.cache_data(show_spinner=False)
-def detect_overlays(source: str, root: str, services: tuple, lat: float, lng: float,
-                    local_items: tuple):
-    """Return (overlays:set, floodplain, slopes, note). Best-effort & non-fatal."""
+def load_footprints(source, root, services, local_items):
+    """Fetch overlay-district geometry. Returns (rows, error_msg). NOT cached, so
+    a transient failure is never remembered \u2014 the Reload button always retries."""
     try:
         if source == "ArcGIS (live, city GIS)":
-            r = _arcgis_ready(root, services).resolve(lat, lng)
-        elif source == "Local GeoJSON (owned)" and local_items:
-            r = LocalGeoJSONOverlayProvider(dict(local_items)).resolve(lat, lng)
-        else:
-            return (set(), False, False, "manual")
-        return (set(r.overlays), r.floodplain, r.critical_slopes, "")
+            prov = ArcGISOverlayProvider(root=root, services=list(services))
+            prov.plan = prov.discover()
+            return prov.overlay_geojson(), ""
+        if source == "Local GeoJSON (owned)" and local_items:
+            return LocalGeoJSONOverlayProvider(dict(local_items)).overlay_geojson(), ""
+        return [], ""
     except Exception as exc:  # noqa: BLE001
-        return (set(), False, False, f"detection unavailable: {exc}")
+        return [], str(exc)
+
+
+def _point_in_ring(x, y, ring):
+    inside = False
+    n = len(ring)
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def _point_in_geom(lng, lat, geom):
+    t = geom.get("type")
+    cs = geom.get("coordinates", [])
+    polys = [cs] if t == "Polygon" else (cs if t == "MultiPolygon" else [])
+    for poly in polys:
+        if not poly:
+            continue
+        if _point_in_ring(lng, lat, poly[0]) and not any(
+                _point_in_ring(lng, lat, hole) for hole in poly[1:]):
+            return True
+    return False
+
+
+def detect_from_footprints(lat, lng, footprints):
+    """Point-in-polygon against the SAME geometry drawn on the map, so the pin's
+    overlays always match what's shown. Returns (overlays:set, flood, slopes)."""
+    over, flood, slope = set(), False, False
+    for r in footprints:
+        gj = r.get("geojson")
+        if not gj or not gj.get("features"):
+            continue
+        hit = any(_point_in_geom(lng, lat, f.get("geometry") or {}) for f in gj["features"])
+        if not hit:
+            continue
+        sig = r["signal"]
+        if sig == "floodplain":
+            flood = True
+        elif sig == "critical_slopes":
+            slope = True
+        else:
+            over.add(sig)
+    return over, flood, slope
 
 
 def chip(label, color="#2b8cbe"):
     return (f"<span style='display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;"
             f"background:{color}1a;border:1px solid {color};color:{color};font-size:12px'>{label}</span>")
+
+
+def legend_item(sig):
+    c = OVERLAY_COLORS.get(sig, "#666666")
+    return (f"<span style='display:inline-block;width:12px;height:12px;background:{c};"
+            f"border:1px solid #333;margin:0 5px 0 12px;vertical-align:middle'></span>{sig}")
 
 
 # --------------------------------------------------------------------------- #
@@ -179,9 +225,53 @@ if "mzoom" not in st.session_state:
 st.subheader("1 \u00b7 Where is the parcel?")
 pt = st.session_state.pt
 
+# --- load overlay districts once (visible + reloadable), keep in session ------
+lc1, lc2 = st.columns([1, 4])
+need_load = ("footprints" not in st.session_state) or (st.session_state.get("fp_src") != src)
+if lc1.button("\u21bb Reload layers") or need_load:
+    with st.spinner("Loading overlay districts from the city GIS\u2026"):
+        rows, err = load_footprints(src, arcgis_root, arcgis_services,
+                                    tuple(sorted(local_registry.items())))
+    st.session_state["footprints"] = rows
+    st.session_state["fp_error"] = err
+    st.session_state["fp_src"] = src
+
+footprints = st.session_state.get("footprints", [])
+fp_error = st.session_state.get("fp_error", "")
+present_fp = [r for r in footprints if r.get("geojson") and r["geojson"].get("features")]
+
+# status + static color legend, above the map (no folium layer-control menu)
+if present_fp:
+    seen, items = set(), []
+    for r in present_fp:
+        if r["signal"] in seen:
+            continue
+        seen.add(r["signal"])
+        items.append(legend_item(r["signal"]))
+    total = sum(len(r["geojson"]["features"]) for r in present_fp)
+    lc2.caption(f"{len(present_fp)} overlay layers loaded ({total} features).")
+    st.markdown("**Overlay districts:** " + " ".join(items), unsafe_allow_html=True)
+elif src == "Manual entry":
+    lc2.caption("Manual mode \u2014 set overlays by hand below.")
+else:
+    lc2.warning(f"No overlay geometry loaded. {fp_error or 'The GIS returned nothing.'} "
+                "Check the source in **Advanced**, then Reload.")
+    if footprints:
+        with st.expander("Layer load detail"):
+            st.dataframe([{"Signal": r["signal"], "Layer": r["layer"],
+                           "Features": r.get("count", 0), "Status": r.get("error", "ok")}
+                          for r in footprints], hide_index=True, use_container_width=True)
+
 if HAVE_MAP:
     fmap = folium.Map(location=st.session_state.mcenter, zoom_start=st.session_state.mzoom,
                       control_scale=True)
+    for r in present_fp:
+        c = OVERLAY_COLORS.get(r["signal"], "#666666")
+        folium.GeoJson(
+            r["geojson"], name=f'{r["signal"]}: {r["layer"]}',
+            style_function=lambda _f, c=c: {"color": c, "weight": 2,
+                                            "fillColor": c, "fillOpacity": 0.22},
+        ).add_to(fmap)
     folium.Marker(pt, tooltip="Parcel",
                   icon=folium.Icon(color="darkblue", icon="crosshairs", prefix="fa")).add_to(fmap)
     out = st_folium(fmap, key="map", center=st.session_state.mcenter, zoom=st.session_state.mzoom,
@@ -212,42 +302,51 @@ with st.expander("Enter exact coordinates"):
 
 lat, lng = st.session_state.pt
 
-# Detect overlays for this point (silent, cached), then let the model use them.
-det_over, det_flood, det_slope, det_note = detect_overlays(
-    src, arcgis_root, arcgis_services, lat, lng, tuple(sorted(local_registry.items())))
+# Detect overlays at the pin LOCALLY, against the same polygons drawn above.
+det_over, det_flood, det_slope = detect_from_footprints(lat, lng, present_fp)
 
-# apply any manual overrides captured previously this session
-ov_over = set(st.session_state.get("ovr_over", det_over))
-ov_flood = st.session_state.get("ovr_flood", det_flood)
-ov_slope = st.session_state.get("ovr_slope", det_slope)
-
-badge_bits = [chip(o, OVERLAY_COLORS.get(o, "#2b8cbe")) for o in sorted(ov_over)]
-if ov_flood:
-    badge_bits.append(chip("floodplain", OVERLAY_COLORS.get("floodplain", "#2b8cbe")))
-if ov_slope:
-    badge_bits.append(chip("critical slopes", "#e6550d"))
-if badge_bits:
-    st.markdown("Overlays here: " + " ".join(badge_bits), unsafe_allow_html=True)
-elif det_note.startswith("detection"):
-    st.caption(det_note + " \u2014 set overlays manually below if needed.")
+# Effective overlays: follow detection by default; manual override is opt-in
+# (kept separate so a stuck checkbox can never shadow detection).
+follow = st.session_state.get("follow_det", True)
+if follow:
+    eff_over, eff_flood, eff_slope = set(det_over), det_flood, det_slope
 else:
-    st.caption("No special overlays detected at this point.")
+    eff_over = {c for c in OVERLAY_CATEGORIES if st.session_state.get(f"m_{c}")}
+    eff_flood = st.session_state.get("m_flood", det_flood)
+    eff_slope = st.session_state.get("m_slope", det_slope)
+
+badge = [chip(o, OVERLAY_COLORS.get(o, "#2b8cbe")) for o in sorted(eff_over)]
+if eff_flood:
+    badge.append(chip("floodplain", OVERLAY_COLORS.get("floodplain", "#2b8cbe")))
+if eff_slope:
+    badge.append(chip("critical slopes", "#e6550d"))
+st.markdown(("Overlays at this parcel: " + " ".join(badge)) if badge
+            else "_No overlays at this parcel._", unsafe_allow_html=True)
 
 with st.expander("Adjust overlays"):
-    st.caption("Detection pre-fills these; change them if you know better. These drive the routing.")
-    ac = st.columns(2)
-    chosen = set()
-    with ac[0]:
-        for cat in OVERLAY_CATEGORIES:
-            if st.checkbox(cat, value=cat in ov_over, key=f"ov_{cat}"):
-                chosen.add(cat)
-    with ac[1]:
-        f = st.checkbox("In floodplain", value=ov_flood, key="ov_flood")
-        s = st.checkbox("Critical slopes impacted", value=ov_slope, key="ov_slope")
-    st.session_state["ovr_over"] = chosen
-    st.session_state["ovr_flood"] = f
-    st.session_state["ovr_slope"] = s
-    ov_over, ov_flood, ov_slope = chosen, f, s
+    follow = st.checkbox("Use overlays detected at the pin (recommended)", value=follow,
+                         key="follow_det")
+    if follow:
+        st.caption("Detected from the map: "
+                   + (", ".join(sorted(det_over)
+                                + (["floodplain"] if det_flood else [])
+                                + (["critical slopes"] if det_slope else [])) or "none"))
+        eff_over, eff_flood, eff_slope = set(det_over), det_flood, det_slope
+    else:
+        st.caption("Manual override \u2014 these drive the routing.")
+        ac = st.columns(2)
+        chosen = set()
+        with ac[0]:
+            for cat in OVERLAY_CATEGORIES:
+                if st.checkbox(cat, value=cat in det_over, key=f"m_{cat}"):
+                    chosen.add(cat)
+        with ac[1]:
+            f = st.checkbox("In floodplain", value=det_flood, key="m_flood")
+            s = st.checkbox("Critical slopes impacted", value=det_slope, key="m_slope")
+        eff_over, eff_flood, eff_slope = chosen, f, s
+
+overlays = ManualOverlayProvider().resolve(overlays=eff_over, floodplain=eff_flood,
+                                           critical_slopes=eff_slope)
 
 overlays = ManualOverlayProvider().resolve(overlays=ov_over, floodplain=ov_flood,
                                            critical_slopes=ov_slope)
